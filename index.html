@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #fafafa; --card: #ffffff;
+    --accent: #ff8c1a; --accent-dark: #e67300;
+    --line: #111111; --text: #1a1a1a; --muted: #999999;
+    --radius: 14px;
+    --shadow: 0 6px 24px rgba(0,0,0,0.06);
+  }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 20px; line-height: 1.5;
+    overflow-x: hidden; -webkit-tap-highlight-color: transparent;
+  }
+  .corner-box {
+    position: relative; background: var(--card);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    transition: box-shadow 0.3s ease;
+  }
+  .corner-box::before, .corner-box::after,
+  .corner-box > .c-tl::before, .corner-box > .c-tl::after {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    border-color: var(--line); border-style: solid;
+    pointer-events: none; z-index: 2;
+  }
+  .corner-box::before { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+  .corner-box::after  { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+  .corner-box > .c-tl::before { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+  .corner-box > .c-tl::after  { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+  .corner-box > .c-tl { position: absolute; inset: 0; pointer-events: none; }
+
+  .header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; margin-bottom: 18px;
+    position: relative; z-index: 10;
+  }
+  .profile-wrap { position: relative; }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #ffb866);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 18px;
+    cursor: pointer; border: 2px solid var(--line);
+    transition: transform 0.2s ease; overflow: hidden; user-select: none;
+  }
+  .avatar:hover { transform: scale(1.06); }
+  .username { font-size: 15px; font-weight: 600; color: var(--text); }
+  .header .spacer { flex: 1; }
+
+  .dropdown {
+    position: absolute; top: 58px; left: 0;
+    background: var(--card); border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    padding: 6px; display: flex; flex-direction: column; gap: 2px;
+    opacity: 0; visibility: hidden; transform: translateY(-8px);
+    transition: all 0.25s ease; z-index: 100;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+  .dropdown-item {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; cursor: pointer; font-size: 18px;
+    transition: background 0.15s ease; color: var(--text);
+  }
+  .dropdown-item:hover { background: rgba(255,140,26,0.12); }
+
+  .main { display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    padding: 18px 20px; position: relative;
+    animation: fadeUp 0.5s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.12s; }
+  .card:nth-child(3) { animation-delay: 0.19s; }
+
+  .input-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tab-btn {
+    padding: 6px 14px; border-radius: 8px;
+    border: 1.5px solid transparent;
+    background: rgba(0,0,0,0.04);
+    font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+    cursor: pointer; color: var(--muted);
+    transition: all 0.2s ease;
+  }
+  .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent-dark); }
+  .tab-btn:hover:not(.active) { background: rgba(255,140,26,0.12); color: var(--accent-dark); }
+
+  .code-area {
+    width: 100%; min-height: 160px; max-height: 320px;
+    padding: 14px 16px; border-radius: 10px;
+    border: 1.5px solid rgba(0,0,0,0.08);
+    background: #fcfcfc;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px; line-height: 1.6;
+    resize: vertical; outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    color: var(--text);
+  }
+  .code-area:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,140,26,0.15); }
+  .code-area::placeholder { color: #c0c0c0; }
+
+  .file-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 9px 14px; border-radius: 9px;
+    background: rgba(0,0,0,0.04);
+    border: 1.5px dashed rgba(0,0,0,0.15);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    color: var(--muted); transition: all 0.2s ease;
+  }
+  .icon-btn:hover { border-color: var(--accent); background: rgba(255,140,26,0.08); color: var(--accent-dark); }
+  .icon-btn input { display: none; }
+  .icon-btn .ic { font-size: 15px; }
+
+  .file-list { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .file-chip {
+    background: rgba(255,140,26,0.12); color: var(--accent-dark);
+    padding: 4px 10px; border-radius: 16px;
+    font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    animation: fadeUp 0.3s ease; max-width: 100%;
+    overflow: hidden;
+  }
+  .file-chip.main { background: var(--accent); color: white; }
+  .file-chip .nm {
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 140px;
+  }
+  .file-chip .rm {
+    cursor: pointer; opacity: 0.6; font-weight: 700;
+    font-size: 14px; line-height: 1;
+  }
+  .file-chip .rm:hover { opacity: 1; }
+
+  .run-row { display: flex; gap: 10px; }
+  .run-btn {
+    flex: 1; padding: 14px 20px; border-radius: 11px;
+    border: 1.5px solid var(--accent-dark);
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s ease;
+    box-shadow: 0 4px 14px rgba(255,140,26,0.3);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .run-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(255,140,26,0.4); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .clear-btn {
+    padding: 14px 18px; border-radius: 11px;
+    border: 1.5px solid rgba(0,0,0,0.12);
+    background: white; color: var(--muted);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s ease;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .clear-btn:hover { border-color: var(--line); background: #f5f5f5; color: var(--text); }
+
+  .preview-frame {
+    width: 100%; min-height: 320px; height: 380px;
+    border-radius: 10px; border: 1.5px solid rgba(0,0,0,0.08);
+    background: white; transition: border-color 0.2s ease; display: block;
+  }
+  .preview-frame.loading { border-color: var(--accent); }
+  .preview-empty {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 320px; height: 380px; border-radius: 10px;
+    border: 1.5px dashed rgba(0,0,0,0.12);
+    color: var(--muted); font-size: 13px;
+    font-family: 'Consolas', monospace; background: #fcfcfc;
+    text-align: center; padding: 20px;
+  }
+
+  .console {
+    margin-top: 12px; background: #0d1117; color: #c9d1d9;
+    padding: 12px 14px; border-radius: 10px;
+    font-family: 'Consolas', monospace; font-size: 12px;
+    max-height: 140px; overflow-y: auto;
+    line-height: 1.6; display: none;
+  }
+  .console.show { display: block; }
+  .console .err { color: #ff7b72; }
+  .console .ok  { color: #7ee787; }
+  .console .log { color: #79c0ff; }
+  .console .warn { color: #ffa657; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px); z-index: 999;
+    display: none; align-items: center; justify-content: center;
+    padding: 20px; opacity: 0; transition: opacity 0.25s ease;
+  }
+  .modal-backdrop.open { display: flex; opacity: 1; }
+  .modal {
+    background: white; border-radius: 16px; padding: 24px 22px;
+    max-width: 420px; width: 100%; max-height: 88vh;
+    overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    transform: scale(0.94); transition: transform 0.25s ease;
+  }
+  .modal-backdrop.open .modal { transform: scale(1); }
+  .setting-group { margin-bottom: 16px; }
+  .setting-label {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    margin-bottom: 6px; letter-spacing: 0.8px; text-transform: uppercase;
+  }
+  .setting-input {
+    width: 100%; padding: 11px 14px; border-radius: 9px;
+    border: 1.5px solid rgba(0,0,0,0.1);
+    font-size: 13px; outline: none;
+    transition: border-color 0.2s ease;
+    font-family: inherit; background: #fcfcfc; color: var(--text);
+  }
+  .setting-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,140,26,0.15); }
+  .color-row { display: flex; gap: 10px; align-items: center; }
+  .color-row input[type="color"] {
+    width: 50px; height: 40px;
+    border: 1.5px solid rgba(0,0,0,0.1);
+    border-radius: 9px; cursor: pointer; background: none; padding: 2px;
+  }
+  .color-row .setting-input { flex: 1; }
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .preset {
+    width: 32px; height: 32px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .preset:hover { transform: scale(1.1); border-color: var(--line); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .modal-actions button {
+    flex: 1; padding: 12px; border-radius: 10px;
+    border: none; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s ease;
+  }
+  .btn-save {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: white; box-shadow: 0 4px 14px rgba(255,140,26,0.3);
+  }
+  .btn-save:hover { transform: translateY(-1px); }
+  .btn-cancel { background: #f0f0f0; color: var(--text); }
+  .btn-cancel:hover { background: #e4e4e4; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--line); color: white;
+    padding: 11px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    opacity: 0; transition: all 0.3s ease;
+    z-index: 1000; pointer-events: none;
+    max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 640px) {
+    body { padding: 14px; }
+    .header { padding: 10px 14px; gap: 10px; }
+    .avatar { width: 40px; height: 40px; font-size: 15px; }
+    .username { font-size: 14px; }
+    .card { padding: 14px 16px; }
+    .code-area { min-height: 130px; font-size: 12px; }
+    .preview-frame, .preview-empty { height: 300px; min-height: 300px; }
+    .run-btn, .clear-btn { padding: 12px 16px; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header corner-box">
+  <span class="c-tl"></span>
+  <div class="profile-wrap">
+    <div class="avatar" id="avatar" onclick="toggleDropdown(event)">G</div>
+    <div class="dropdown" id="dropdown">
+      <div class="dropdown-item" onclick="openSettings()" title="Pengaturan">⚙</div>
+      <div class="dropdown-item" onclick="showToast('Profil')" title="Profil">👤</div>
+      <div class="dropdown-item" onclick="showToast('Info')" title="Info">ℹ</div>
+    </div>
+  </div>
+  <div class="username" id="displayName">Tuan Gigs</div>
+  <div class="spacer"></div>
+</div>
+
+<div class="main">
+
+  <div class="card corner-box">
+    <span class="c-tl"></span>
+    <div class="input-tabs">
+      <button class="tab-btn active" data-tab="html" onclick="switchTab('html')">HTML</button>
+      <button class="tab-btn" data-tab="css" onclick="switchTab('css')">CSS</button>
+      <button class="tab-btn" data-tab="js" onclick="switchTab('js')">JS</button>
+    </div>
+
+    <textarea class="code-area" id="codeInput"
+      placeholder="Contoh: &lt;h1&gt;Halo&lt;/h1&gt;&#10;Atau upload ZIP di bawah untuk auto-load..."></textarea>
+
+    <div class="file-row">
+      <label class="icon-btn" title="Pilih file">
+        <span class="ic">📄</span> FILE
+        <input type="file" id="fileInput" multiple accept=".html,.css,.js,.txt,.json,.md,.svg">
+      </label>
+      <label class="icon-btn" title="Upload ZIP (auto-extract)" id="zipLabel">
+        <span class="ic">🗜</span> ZIP
+        <input type="file" id="zipInput" accept=".zip">
+      </label>
+    </div>
+
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <div class="card corner-box">
+    <span class="c-tl"></span>
+    <div class="run-row">
+      <button class="run-btn" id="runBtn" onclick="runCode()">▶ JALANKAN</button>
+      <button class="clear-btn" onclick="clearAll()">✕</button>
+    </div>
+  </div>
+
+  <div class="card corner-box">
+    <span class="c-tl"></span>
+    <div id="previewContainer">
+      <div class="preview-empty" id="previewEmpty">
+        </> Hasil kode akan tampil di sini
+      </div>
+    </div>
+    <div class="console" id="console"></div>
+  </div>
+
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeSettings(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="setting-group">
+      <div class="setting-label">Nama Pengguna</div>
+      <input class="setting-input" id="inputName" placeholder="Contoh: Tuan Gigs">
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">Inisial Avatar</div>
+      <input class="setting-input" id="inputAvatar" maxlength="2" placeholder="Contoh: G">
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">Warna Aksen</div>
+      <div class="color-row">
+        <input type="color" id="inputAccent" value="#ff8c1a">
+        <input class="setting-input" id="inputAccentHex" value="#ff8c1a">
+      </div>
+      <div class="preset-row">
+        <div class="preset" style="background:#ff8c1a" onclick="setAccent('#ff8c1a')"></div>
+        <div class="preset" style="background:#e63946" onclick="setAccent('#e63946')"></div>
+        <div class="preset" style="background:#2a9d8f" onclick="setAccent('#2a9d8f')"></div>
+        <div class="preset" style="background:#457b9d" onclick="setAccent('#457b9d')"></div>
+        <div class="preset" style="background:#9d4edd" onclick="setAccent('#9d4edd')"></div>
+        <div class="preset" style="background:#111111" onclick="setAccent('#111111')"></div>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">Warna Background</div>
+      <div class="color-row">
+        <input type="color" id="inputBg" value="#fafafa">
+        <input class="setting-input" id="inputBgHex" value="#fafafa">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSettings()">Batal</button>
+      <button class="btn-save" onclick="saveSettings()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ STATE ============
+const state = {
+  html: '', css: '', js: '',
+  currentTab: 'html',
+  files: [],
+  zipFileName: null,
+  name: 'Tuan Gigs',
+  avatar: 'G',
+  accent: '#ff8c1a',
+  bg: '#fafafa'
+};
+
+// ============ LOAD ============
+function loadState() {
+  try {
+    const saved = localStorage.getItem('betox1_state');
+    if (saved) Object.assign(state, JSON.parse(saved));
+  } catch(e) {}
+  applyTheme();
+  updateProfileUI();
+}
+
+function persist() {
+  try {
+    localStorage.setItem('betox1_state', JSON.stringify({
+      name: state.name, avatar: state.avatar,
+      accent: state.accent, bg: state.bg
+    }));
+  } catch(e) {}
+}
+
+// ============ THEME ============
+function applyTheme() {
+  document.documentElement.style.setProperty('--accent', state.accent);
+  document.documentElement.style.setProperty('--accent-dark', shadeColor(state.accent, -15));
+  document.documentElement.style.setProperty('--bg', state.bg);
+  document.body.style.background = state.bg;
+}
+
+function shadeColor(hex, percent) {
+  const num = parseInt(hex.replace('#',''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.max(0, Math.min(255, (num >> 16) + amt));
+  const G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amt));
+  const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
+  return '#' + (0x1000000 + R*0x10000 + G*0x100 + B).toString(16).slice(1);
+}
+
+// ============ PROFILE ============
+function updateProfileUI() {
+  document.getElementById('displayName').textContent = state.name;
+  document.getElementById('avatar').textContent = state.avatar || state.name.charAt(0).toUpperCase();
+}
+
+// ============ DROPDOWN ============
+function toggleDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('dropdown').classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('dropdown').classList.remove('open');
+});
+
+// ============ TAB ============
+function switchTab(tab) {
+  state[state.currentTab] = document.getElementById('codeInput').value;
+  state.currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.getElementById('codeInput').value = state[tab] || '';
+}
+document.getElementById('codeInput').addEventListener('input', (e) => {
+  state[state.currentTab] = e.target.value;
+});
+
+// ============ FILE UPLOAD MANUAL ============
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  for (const file of e.target.files) {
+    const text = await file.text();
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'html' || ext === 'htm') state.html = text;
+    else if (ext === 'css') state.css = text;
+    else if (ext === 'js') state.js = text;
+    state.files.push({ name: file.name, type: ext });
+  }
+  renderFileList();
+  showToast('File dimuat');
+});
+
+// ============ ZIP AUTO-EXTRACT ============
+document.getElementById('zipInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (typeof JSZip === 'undefined') {
+    showToast('JSZip belum dimuat — cek internet');
+    return;
+  }
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Membaca ZIP...';
+  addConsole('Membaca ZIP: ' + file.name, 'log');
+  document.getElementById('console').classList.add('show');
+
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const entries = Object.keys(zip.files).filter(n => !zip.files[n].dir);
+
+    state.files = [];
+    state.zipFileName = file.name;
+
+    // Cari file utama
+    let htmlFiles = [];
+    let cssFiles = [];
+    let jsFiles = [];
+
+    for (const path of entries) {
+      const lower = path.toLowerCase();
+      const name = path.split('/').pop();
+      state.files.push({ name: name, type: lower.split('.').pop() });
+      if (lower.endsWith('.html') || lower.endsWith('.htm')) htmlFiles.push(path);
+      else if (lower.endsWith('.css')) cssFiles.push(path);
+      else if (lower.endsWith('.js')) jsFiles.push(path);
+    }
+
+    if (htmlFiles.length === 0) {
+      showToast('Tidak ada file HTML di ZIP');
+      addConsole('ERROR: ZIP tidak punya file HTML', 'err');
+      btn.disabled = false;
+      btn.textContent = '▶ JALANKAN';
+      return;
+    }
+
+    // Pilih HTML utama: prioritas index.html di root
+    let mainHtml = htmlFiles.find(p => p.toLowerCase() === 'index.html')
+                || htmlFiles.find(p => p.toLowerCase().endsWith('/index.html'))
+                || htmlFiles[0];
+
+    addConsole('File utama: ' + mainHtml, 'ok');
+
+    // Gabungkan semua CSS & JS
+    let allCss = '';
+    for (const c of cssFiles) {
+      allCss += '/* ' + c + ' */\n' + await zip.files[c].async('string') + '\n\n';
+    }
+    let allJs = '';
+    for (const j of jsFiles) {
+      allJs += '/* ' + j + ' */\n' + await zip.files[j].async('string') + '\n\n';
+    }
+
+    // Ambil HTML utama
+    let mainHtmlContent = await zip.files[mainHtml].async('string');
+
+    // Hitung base path untuk resolve gambar/CSS/JS lokal
+    const basePath = mainHtml.substring(0, mainHtml.lastIndexOf('/') + 1);
+
+    // Inline CSS lokal yang direferensikan
+    const cssLinkRegex = /<link[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
+    let match;
+    while ((match = cssLinkRegex.exec(mainHtmlContent)) !== null) {
+      const ref = match[1];
+      // Cari di zip
+      const candidates = [basePath + ref, ref, ref.replace(/^\.\//, ''), basePath + ref.replace(/^\.\//, '')];
+      for (const c of candidates) {
+        if (zip.files[c]) {
+          const cssContent = await zip.files[c].async('string');
+          mainHtmlContent = mainHtmlContent.replace(match[0], '<style>\n' + cssContent + '\n</style>');
+          addConsole('Inline CSS: ' + ref, 'ok');
+          break;
+        }
+      }
+    }
+
+    // Inline JS lokal yang direferensikan
+    const jsSrcRegex = /<script[^>]*src=["']([^"']+)["'][^>]*><\/script>/gi;
+    while ((match = jsSrcRegex.exec(mainHtmlContent)) !== null) {
+      const ref = match[1];
+      const candidates = [basePath + ref, ref, ref.replace(/^\.\//, ''), basePath + ref.replace(/^\.\//, '')];
+      for (const c of candidates) {
+        if (zip.files[c]) {
+          const jsContent = await zip.files[c].async('string');
+          mainHtmlContent = mainHtmlContent.replace(match[0], '<script>\n' + jsContent + '\n<\/script>');
+          addConsole('Inline JS: ' + ref, 'ok');
+          break;
+        }
+      }
+    }
+
+    // Konversi gambar lokal → data URL
+    const imgRegex = /(<img[^>]*src=["'])([^"']+)(["'][^>]*>)/gi;
+    const matches = [];
+    while ((match = imgRegex.exec(mainHtmlContent)) !== null) {
+      matches.push({ full: match[0], pre: match[1], ref: match[2], post: match[3] });
+    }
+    for (const m of matches) {
+      const ref = m.ref;
+      if (ref.startsWith('http') || ref.startsWith('data:')) continue;
+      const candidates = [basePath + ref, ref, ref.replace(/^\.\//, ''), basePath + ref.replace(/^\.\//, '')];
+      for (const c of candidates) {
+        if (zip.files[c]) {
+          try {
+            const blob = await zip.files[c].async('blob');
+            const dataUrl = await blobToDataURL(blob);
+            mainHtmlContent = mainHtmlContent.replace(m.full, m.pre + dataUrl + m.post);
+            addConsole('Inline gambar: ' + ref, 'ok');
+          } catch(e) {}
+          break;
+        }
+      }
+    }
+
+    state.html = mainHtmlContent;
+    state.css = allCss;
+    state.js = allJs;
+
+    renderFileList();
+    addConsole('ZIP siap — ' + htmlFiles.length + ' HTML, ' + cssFiles.length + ' CSS, ' + jsFiles.length + ' JS', 'ok');
+    showToast('ZIP berhasil diekstrak');
+
+    // Langsung render
+    switchTab('html');
+    runCode();
+
+  } catch (err) {
+    addConsole('ERROR: ' + err.message, 'err');
+    showToast('Gagal membaca ZIP');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶ JALANKAN';
+});
+
+// Helper: Blob → Data URL
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ============ RENDER FILE LIST ============
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  list.innerHTML = '';
+  state.files.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    chip.innerHTML = '<span class="nm">' + f.name + '</span><span class="rm" onclick="removeFile(' + i + ')">×</span>';
+    list.appendChild(chip);
+  });
+}
+
+function removeFile(i) { state.files.splice(i, 1); renderFileList(); }
+
+// ============ RUN ============
+function runCode() {
+  state[state.currentTab] = document.getElementById('codeInput').value;
+
+  const container = document.getElementById('previewContainer');
+  const empty = document.getElementById('previewEmpty');
+  if (empty) empty.remove();
+
+  let frame = document.getElementById('previewFrame');
+  if (!frame) {
+    frame = document.createElement('iframe');
+    frame.className = 'preview-frame';
+    frame.id = 'previewFrame';
+    frame.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms allow-same-origin allow-popups');
+    container.appendChild(frame);
+  }
+  frame.classList.add('loading');
+
+  const cons = document.getElementById('console');
+  cons.classList.add('show');
+
+  // Kalau HTML sudah lengkap (dari ZIP), langsung pakai
+  let finalHtml = state.html || '';
+
+  // Kalau HTML belum punya <html> lengkap, bungkus
+  const isFullDoc = /<html[\s>]/i.test(finalHtml);
+
+  let doc;
+  if (isFullDoc) {
+    // Sudah dokumen lengkap — inject CSS/JS tambahan kalau ada
+    doc = finalHtml;
+    if (state.css && !/<style>/i.test(doc)) {
+      doc = doc.replace(/<\/head>/i, '<style>' + state.css + '</style></head>');
+    }
+    if (state.js && !/<script>/i.test(doc)) {
+      doc = doc.replace(/<\/body>/i, '<script>' + state.js + '<\/script></body>');
+    }
+  } else {
+    doc = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>${state.css || ''}</style>
+</head><body>
+${finalHtml}
+<script>${state.js || ''}<\/script>
+</body></html>`;
+  }
+
+  // Inject error catcher
+  const errorCatcher = `<script>
+window.addEventListener('error', function(ev){
+  try { parent.postMessage({type:'error', msg: ev.message + ' @ ' + (ev.filename||'') + ':' + ev.lineno}, '*'); } catch(e){}
+});
+const _log = console.log, _err = console.error, _warn = console.warn;
+console.log = function(){ try{ parent.postMessage({type:'log',msg:Array.from(arguments).map(a=>{try{return typeof a==='object'?JSON.stringify(a):String(a)}catch(e){return String(a)}}).join(' ')},'*'); }catch(e){} _log.apply(console, arguments); };
+console.error = function(){ try{ parent.postMessage({type:'error',msg:Array.from(arguments).map(String).join(' ')},'*'); }catch(e){} _err.apply(console, arguments); };
+console.warn = function(){ try{ parent.postMessage({type:'warn',msg:Array.from(arguments).map(String).join(' ')},'*'); }catch(e){} _warn.apply(console, arguments); };
+<\/script>`;
+
+  doc = doc.replace(/<head>/i, '<head>' + errorCatcher) || (errorCatcher + doc);
+
+  frame.srcdoc = doc;
+  setTimeout(() => frame.classList.remove('loading'), 500);
+  addConsole('Render OK', 'ok');
+}
+
+window.addEventListener('message', (e) => {
+  if (!e.data || !e.data.type) return;
+  if (e.data.type === 'error') addConsole('ERROR: ' + e.data.msg, 'err');
+  if (e.data.type === 'log')   addConsole(e.data.msg, 'log');
+  if (e.data.type === 'warn')  addConsole('WARN: ' + e.data.msg, 'warn');
+});
+
+function addConsole(msg, type) {
+  const cons = document.getElementById('console');
+  const line = document.createElement('div');
+  line.className = type || 'log';
+  line.textContent = '› ' + msg;
+  cons.appendChild(line);
+  cons.scrollTop = cons.scrollHeight;
+}
+
+// ============ CLEAR ============
+function clearAll() {
+  state.html = ''; state.css = ''; state.js = '';
+  state.files = []; state.zipFileName = null;
+  document.getElementById('codeInput').value = '';
+  renderFileList();
+  const container = document.getElementById('previewContainer');
+  container.innerHTML = '<div class="preview-empty" id="previewEmpty"></> Hasil kode akan tampil di sini</div>';
+  const cons = document.getElementById('console');
+  cons.innerHTML = '';
+  cons.classList.remove('show');
+  showToast('Dibersihkan');
+}
+
+// ============ SETTINGS ============
+function openSettings() {
+  document.getElementById('dropdown').classList.remove('open');
+  document.getElementById('inputName').value = state.name;
+  document.getElementById('inputAvatar').value = state.avatar;
+  document.getElementById('inputAccent').value = state.accent;
+  document.getElementById('inputAccentHex').value = state.accent;
+  document.getElementById('inputBg').value = state.bg;
+  document.getElementById('inputBgHex').value = state.bg;
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+
+function closeSettings(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('modalBackdrop').classList.remove('open');
+}
+
+function setAccent(hex) {
+  document.getElementById('inputAccent').value = hex;
+  document.getElementById('inputAccentHex').value = hex;
+}
+
+function saveSettings() {
+  state.name = document.getElementById('inputName').value.trim() || 'User';
+  state.avatar = document.getElementById('inputAvatar').value.trim() || state.name.charAt(0).toUpperCase();
+  state.accent = document.getElementById('inputAccentHex').value.trim() || state.accent;
+  state.bg = document.getElementById('inputBgHex').value.trim() || state.bg;
+  applyTheme();
+  updateProfileUI();
+  persist();
+  closeSettings();
+  showToast('Tersimpan');
+}
+
+document.getElementById('inputAccent').addEventListener('input', e => {
+  document.getElementById('inputAccentHex').value = e.target.value;
+});
+document.getElementById('inputAccentHex').addEventListener('input', e => {
+  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.getElementById('inputAccent').value = e.target.value;
+});
+document.getElementById('inputBg').addEventListener('input', e => {
+  document.getElementById('inputBgHex').value = e.target.value;
+});
+document.getElementById('inputBgHex').addEventListener('input', e => {
+  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.getElementById('inputBg').value = e.target.value;
+});
+
+// ============ TOAST ============
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============ INIT ============
+loadState();
+</script>
+</body>
+</html>
